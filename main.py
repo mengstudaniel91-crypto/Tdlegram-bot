@@ -9,10 +9,22 @@ from telebot import types
 # --- Configuration ---
 TOKEN = '8410032982:AAHO3iuAN4AMvKBWo6KIEyRqnMm4g4bVQGM'
 RENDER_URL = "https://revoked.onrender.com"
-# --- Gemini AI Configuration ---
+# --- Gemini AI Configuration (Safety Fix) ---
 GEMINI_KEY = 'AIzaSyBkZ2Fnf8KNhztz11hQd59adNf69peZfD0'
 genai.configure(api_key=GEMINI_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+
+# ደህንነት (Safety) ገደቦችን ለማለፍ
+safety_settings = [
+    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+]
+
+model = genai.GenerativeModel(
+    model_name='gemini-1.5-flash',
+    safety_settings=safety_settings
+)
 
 bot = telebot.TeleBot(TOKEN, threaded=False)
 server = Flask(__name__)
