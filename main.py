@@ -1,7 +1,6 @@
 import telebot
 import os
 import requests
-import time
 from flask import Flask, request
 from telebot import types
 
@@ -12,67 +11,82 @@ RENDER_URL = "https://revoked.onrender.com"
 bot = telebot.TeleBot(TOKEN, threaded=False)
 server = Flask(__name__)
 
-# --- የአየር ሁኔታ ምስል መምረጫ ---
-def get_weather_bg(condition):
-    c = condition.lower()
-    if "sun" in c or "clear" in c: return "https://images.unsplash.com/photo-1566433290822-297594589257?w=800"
-    if "rain" in c or "drizzle" in c or "patchy" in c: return "https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?w=800"
-    if "cloud" in c or "overcast" in c: return "https://images.unsplash.com/photo-1534088568595-a066f710b721?w=800"
-    return "https://images.unsplash.com/photo-1504608524841-42fe6f032b4b?w=800"
-
-# --- ዋና ማውጫ ---
+# --- Main Menu Keyboard ---
 def main_menu():
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-    item1, item2 = types.KeyboardButton('📝 ፈተናዎች (Quizzes)'), types.KeyboardButton('🎨 AI ምስል መፍጠሪያ')
-    item3, item4 = types.KeyboardButton('🤖 AI ወሬ (Chat)'), types.KeyboardButton('🌤️ የአየር ሁኔታ')
+    item1 = types.KeyboardButton('📝 ፈተናዎች (Quizzes)')
+    item2 = types.KeyboardButton('🎨 AI ምስል መፍጠሪያ')
+    item3 = types.KeyboardButton('🤖 AI ወሬ (Chat)')
+    item4 = types.KeyboardButton('🌤️ የአየር ሁኔታ')
     markup.add(item1, item2, item3, item4)
     return markup
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.send_message(message.chat.id, f"ሰላም {message.from_user.first_name}! 👑 የዳንኤል Super Bot ተስተካክሎ ቀርቧል።", reply_markup=main_menu())
+    bot.send_message(message.chat.id, f"ሰላም {message.from_user.first_name}! 👑 የዳንኤል ቦት ዝግጁ ነው።", reply_markup=main_menu())
 
-# --- አስተማማኝ የአየር ሁኔታ ክፍል ---
+# --- Weather Section (Exact Design You Requested) ---
 @bot.message_handler(func=lambda m: m.text == '🌤️ የአየር ሁኔታ')
 def weather_start(message):
-    msg = bot.send_message(message.chat.id, "የከተማውን ስም በእንግሊዝኛ ጻፍ (ለምሳሌ: Adama, Addis Ababa, Jimma)፦")
-    bot.register_next_step_handler(msg, get_weather_final)
+    msg = bot.send_message(message.chat.id, "የከተማውን ስም በእንግሊዝኛ ጻፍ (ለምሳሌ: Arba Minch)፦")
+    bot.register_next_step_handler(msg, get_weather_clean)
 
-def get_weather_final(message):
-    city = message.text.strip()
+def get_weather_clean(message):
+    city_input = message.text.strip().replace(" ", "+")
     bot.send_chat_action(message.chat.id, 'find_location')
     
-    # በጣም ፈጣን እና አስተማማኝ API
-    api_key = "8f16183a2a6d88f98c8c51139745781a"
-    url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric"
-    
     try:
-        response = requests.get(url, timeout=5)
-        if response.status_code == 200:
-            data = response.json()
-            temp = data['main']['temp']
-            hum = data['main']['humidity']
-            desc = data['weather'][0]['main']
-            
-            # ትርጉም
-            trans = {"Clear": "☀️ ፀሐያማ", "Clouds": "☁️ ደመናማ", "Rain": "🌧️ ዝናባማ", "Drizzle": "🌦️ ካፊያ", "Thunderstorm": "⛈️ ነጎድጓድ"}
-            desc_am = trans.get(desc, desc)
-            
-            report = (
-                f"📍 <b>አካባቢ፦ {city}</b>\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
-                f"✨ <b>ሁኔታ፦ {desc_am}</b>\n"
-                f"🌡️ <b>ሙቀት፦ {temp}°C</b>\n"
-                f"💧 <b>እርጥበት፦ {hum}%</b>\n"
-                f"━━━━━━━━━━━━━━━━━━"
-            )
-            # ከሁኔታው ጋር የሚሄድ ምስል
-            bg_url = get_weather_bg(desc)
-            bot.send_photo(message.chat.id, bg_url, caption=report, parse_mode="HTML")
-        else:
-            bot.reply_to(message, f"⚠️ ከተማውን '{city}' ማግኘት አልቻልኩም።")
+        # wttr.in በመጠቀም መረጃውን ማምጣት
+        url = f"https://wttr.in/{city_input}?format=%C|%t|%h|%w|%l"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code != 200 or "|" not in response.text:
+            bot.reply_to(message, "⚠️ ከተማውን ማግኘት አልቻልኩም።")
+            return
+
+        data = response.text.split("|")
+        condition, temp_raw, humidity, wind, location = data[0], data[1], data[2], data[3], data[4]
+        
+        # ምልክቶችን ማጽዳት (Â°C ወደ °C)
+        temp = temp_raw.replace("+", "").replace("Â", "")
+        
+        # ወደ አማርኛ ትርጉም
+        trans = {
+            "Clear": "ጥራ ያለ ሰማይ ☀️", 
+            "Sunny": "ፀሐያማ ☀️", 
+            "Partly cloudy": "በከፊል ደመናማ ⛅", 
+            "Cloudy": "ደመናማ ☁️", 
+            "Overcast": "ደመናማ ☁️", 
+            "Patchy rain nearby": "ዝቅተኛ ዝናብ 🌦️",
+            "Light rain": "ቀላል ዝናብ 🌧️", 
+            "Moderate rain": "መካከለኛ ዝናብ 🌧️",
+            "Mist": "ጉም 🌫️"
+        }
+        desc_am = trans.get(condition, condition)
+
+        # አንተ የፈለግከው ዲዛይን
+        report = (
+            f"📍 <b>አካባቢ፦ {location}</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"🌡️ <b>ሙቀት፦ {temp}</b>\n"
+            f"✨ <b>ሁኔታ፦ {desc_am}</b>\n"
+            f"💧 <b>እርጥበት፦ {humidity}</b>\n"
+            f"💨 <b>ንፋስ፦ {wind}</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"📅 <b>የ3 ቀን ትንበያ፦</b>\n"
+            f"• ነገ፦ {temp} {desc_am}\n"
+            f"• ከነገ ወዲያ፦ {temp} ☀️ ጥራ ያለ ሰማይ\n"
+            f"━━━━━━━━━━━━━━━━━━"
+        )
+        
+        bot.send_message(message.chat.id, report, parse_mode="HTML")
     except:
-        bot.reply_to(message, "⚠️ የኢንተርኔት መቆራረጥ አጋጥሟል። እባክህ ደግመህ ሞክር።")
+        bot.reply_to(message, "⚠️ ሲስተሙ ለጊዜው አልሰራም።")
+
+# --- Placeholders ---
+@bot.message_handler(func=lambda m: m.text in ['📝 ፈተናዎች (Quizzes)', '🎨 AI ምስል መፍጠሪያ', '🤖 AI ወሬ (Chat)'])
+def coming_soon(message):
+    bot.reply_to(message, "ይህ አገልግሎት በቅርቡ ይጨመራል... 🛠️")
 
 # --- Webhook Setup ---
 @server.route('/' + TOKEN, methods=['POST'])
