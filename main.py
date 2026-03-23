@@ -1,6 +1,7 @@
 import telebot
 import os
 import requests
+import google.generativeai as genai
 import urllib.parse
 from flask import Flask, request
 from telebot import types
@@ -8,6 +9,10 @@ from telebot import types
 # --- Configuration ---
 TOKEN = '8410032982:AAHO3iuAN4AMvKBWo6KIEyRqnMm4g4bVQGM'
 RENDER_URL = "https://revoked.onrender.com"
+# --- Gemini AI Configuration ---
+GEMINI_KEY = 'AIzaSyBkZ2Fnf8KNhztz11hQd59adNf69peZfD0'
+genai.configure(api_key=GEMINI_KEY)
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 bot = telebot.TeleBot(TOKEN, threaded=False)
 server = Flask(__name__)
@@ -113,8 +118,25 @@ def ai_image_start(message):
     msg = bot.send_message(message.chat.id, "ለመፍጠር የፈለግከውን ምስል በእንግሊዝኛ ግለጽልኝ (ለምሳሌ: A lion in a forest)፦")
     bot.register_next_step_handler(msg, generate_ai_image)
 
+# --- AI Chat (Gemini) Section ---
+@bot.message_handler(func=lambda m: m.text == '🤖 AI ወሬ (Chat)')
+def ai_chat_start(message):
+    msg = bot.send_message(message.chat.id, "ሰላም! እኔ የዳንኤል AI ነኝ። የፈለግከውን ጥያቄ በአማርኛ ወይም በእንግሊዝኛ ጠይቀኝ፦")
+    bot.register_next_step_handler(msg, get_gemini_response)
+
+def get_gemini_response(message):
+    user_query = message.text
+    bot.send_chat_action(message.chat.id, 'typing')
+    
+    try:
+        # ለGemini ጥያቄውን መላክ
+        response = model.generate_content(user_query)
+        bot.reply_to(message, response.text, parse_mode="Markdown")
+    except Exception as e:
+        bot.reply_to(message, "⚠️ ይቅርታ፣ AI ሰርቨሩ ለጊዜው ምላሽ መስጠት አልቻለም።")
+        
 # --- Remaining Placeholders (Quiz & Chat) ---
-@bot.message_handler(func=lambda m: m.text in ['📝 ፈተናዎች (Quizzes)', '🤖 AI ወሬ (Chat)'])
+@bot.message_handler(func=lambda m: m.text in ['📝 ፈተናዎች (Quizzes)'])
 def coming_soon(message):
     bot.reply_to(message, "ይህ አገልግሎት (Gemini AI) በቅርቡ ይጨመራል... 🛠️")
 
