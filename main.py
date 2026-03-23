@@ -6,7 +6,7 @@ from threading import Thread
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # --- CONFIG ---
-TOKEN = '8410032982:AAFB8ndxEzT4dYfX9bdWFMweG7IEul1tDxc'
+TOKEN = '8410032982:AAGh7bEzxNs3TZ-v8ZaJccV1ulWid6eNv90'
 bot = telebot.TeleBot(TOKEN, threaded=False) # ግጭትን ለመከላከል False ተደርጓል
 
 # --- SERVER FOR RENDER ---
