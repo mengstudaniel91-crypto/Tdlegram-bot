@@ -7,15 +7,15 @@ import requests
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-# --- 1. CONFIGURATION (የአንተ መለያዎች) ---
-TOKEN = '8625922488:AAGy8XeJce6OMQ7tIxZDzViFqn8E0McBJ-8' 
+# --- 1. CONFIGURATION (አዲሱ TOKEN ተተክቷል) ---
+TOKEN = '8410032982:AAFB8ndxEzT4dYfX9bdWFMweG7IEul1tDxc' 
 ADMIN_ID = 7306636487 
 GEMINI_API_KEY = 'AIzaSyDG2YF4HjuUf2pB4ZthS-SGWxiuhJ0xCIU'
 
 bot = telebot.TeleBot(TOKEN)
 user_modes = {}
 
-# --- 2. RENDER PORT SERVER (ለ Render "Live" እንዲል) ---
+# --- 2. RENDER PORT SERVER ---
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -40,11 +40,11 @@ def get_gemini_response(prompt):
         if 'candidates' in data and len(data['candidates']) > 0:
             return data['candidates'][0]['content']['parts'][0]['text']
         else:
-            return "ይቅርታ፣ AI አሁን ላይ ምላሽ መስጠት አልቻለም። እባክዎ ትንሽ ቆይተው ይሞክሩ።"
+            return "ይቅርታ፣ AI አሁን ላይ ምላሽ መስጠት አልቻለም።"
     except Exception as e:
-        return f"የግንኙነት ስህተት አጋጥሟል፦ {str(e)}"
+        return f"የግንኙነት ስህተት፦ {str(e)}"
 
-# --- 4. START COMMAND & MENU ---
+# --- 4. START COMMAND ---
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     user_modes[message.chat.id] = None
@@ -52,7 +52,7 @@ def send_welcome(message):
     markup.add('📥 ቪዲዮ አውራጅ', '📝 ምዝገባ', '🤖 AI ወሬ')
     bot.send_message(message.chat.id, "እንኳን ደህና መጡ! ዳንኤል ነኝ፣ ምን ላግዝዎት?", reply_markup=markup)
 
-# --- 5. REGISTRATION WITH PHONE NUMBER ---
+# --- 5. REGISTRATION LOGIC ---
 @bot.message_handler(func=lambda m: m.text == '📝 ምዝገባ')
 def start_reg(message):
     msg = bot.send_message(message.chat.id, "ሙሉ ስምዎን ያስገቡ፦", reply_markup=types.ReplyKeyboardRemove())
@@ -63,76 +63,54 @@ def get_name(message):
     markup = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True, one_time_keyboard=True)
     button_phone = types.KeyboardButton(text="📲 ስልክ ቁጥሬን ላክ", request_contact=True)
     markup.add(button_phone)
-    msg = bot.send_message(message.chat.id, f"እሺ {name}፣ እባክዎ ከታች ያለውን ሰማያዊ በተን ተጭነው ስልክዎን ያጋሩ፦", reply_markup=markup)
+    msg = bot.send_message(message.chat.id, f"እሺ {name}፣ እባክዎ ከታች ያለውን በተን ተጭነው ስልክዎን ያጋሩ፦", reply_markup=markup)
     bot.register_next_step_handler(msg, lambda m: finish_reg(m, name))
 
 def finish_reg(message, name):
     phone = message.contact.phone_number if message.contact else message.text
-    bot.send_message(message.chat.id, "✅ ምዝገባዎ በተሳካ ሁኔታ ተጠናቋል!", reply_markup=types.ReplyKeyboardRemove())
-    
-    # ለአድሚኑ (ለአንተ) ኖቲፊኬሽን መላክ
+    bot.send_message(message.chat.id, "✅ ምዝገባዎ ተጠናቋል!", reply_markup=types.ReplyKeyboardRemove())
     admin_msg = f"🔔 አዲስ ተመዝጋቢ!\n👤 ስም፦ {name}\n📞 ስልክ፦ {phone}\n🆔 ID፦ {message.chat.id}"
     bot.send_message(ADMIN_ID, admin_msg)
     send_welcome(message)
 
-# --- 6. VIDEO DOWNLOADER FUNCTION ---
-def download_and_send_video(message):
+# --- 6. VIDEO DOWNLOADER ---
+def download_video(message):
     url = message.text
     cid = message.chat.id
-    bot.send_message(cid, "⏳ ቪዲዮውን በማውረድ ላይ ነኝ... እባክዎ ይጠብቁ።")
-    
-    ydl_opts = {
-        'format': 'best',
-        'outtmpl': f'video_{cid}.mp4',
-        'max_filesize': 45 * 1024 * 1024 # 45MB Limit
-    }
-    
+    bot.send_message(cid, "⏳ ቪዲዮውን በማውረድ ላይ ነኝ...")
+    ydl_opts = {'format': 'best', 'outtmpl': f'v_{cid}.mp4', 'max_filesize': 48*1024*1024}
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
-        
-        filename = f'video_{cid}.mp4'
-        with open(filename, 'rb') as video_file:
-            bot.send_video(cid, video_file, caption="✅ በዳንኤል ቦት የተላከ ቪዲዮ")
-        os.remove(filename)
-    except Exception as e:
-        bot.send_message(cid, "❌ ይቅርታ፣ ቪዲዮውን ማውረድ አልተቻለም። ሊንኩን ያረጋግጡ ወይም ፋይሉ ከ 50MB በላይ መሆኑን ያረጋግጡ።")
+        with open(f'v_{cid}.mp4', 'rb') as v:
+            bot.send_video(cid, v, caption="✅ በዳንኤል ቦት የቀረበ")
+        os.remove(f'v_{cid}.mp4')
+    except:
+        bot.send_message(cid, "❌ ስህተት፦ ቪዲዮውን ማውረድ አልተቻለም።")
 
-# --- 7. MAIN LOGIC HANDLER ---
+# --- 7. MESSAGE PROCESSING ---
 @bot.message_handler(func=lambda m: True)
-def handle_all_messages(message):
+def handle_all(message):
     cid = message.chat.id
-    text = message.text
-
-    if text == '🤖 AI ወሬ':
+    txt = message.text
+    if txt == '🤖 AI ወሬ':
         user_modes[cid] = 'AI'
-        bot.send_message(cid, "አሁን AI Mode ላይ ነዎት። ማንኛውንም ጥያቄ ይጠይቁኝ፦", 
-                         reply_markup=types.ReplyKeyboardMarkup(resize_keyboard=True).add('🏠 ወደ ዋናው ሜኑ'))
-    
-    elif text == '🏠 ወደ ዋናው ሜኑ':
+        bot.send_message(cid, "ጥያቄዎን ይጠይቁ (AI Mode):", reply_markup=types.ReplyKeyboardMarkup(resize_keyboard=True).add('🏠 ወደ ዋናው ሜኑ'))
+    elif txt == '🏠 ወደ ዋናው ሜኑ':
         send_welcome(message)
-
-    elif text == '📥 ቪዲዮ አውራጅ':
+    elif txt == '📥 ቪዲዮ አውራጅ':
         user_modes[cid] = 'DL'
-        bot.send_message(cid, "እባክዎ የቪዲዮውን ሊንክ (TikTok, YouTube, Facebook...) ይላኩልኝ፦")
-
+        bot.send_message(cid, "እባክዎ የቪዲዮ ሊንክ ይላኩ፦")
     elif user_modes.get(cid) == 'AI':
-        bot.send_chat_action(cid, 'typing')
-        bot.reply_to(message, get_gemini_response(text))
-
-    elif user_modes.get(cid) == 'DL' or "http" in text:
-        download_and_send_video(message)
+        bot.reply_to(message, get_gemini_response(txt))
+    elif user_modes.get(cid) == 'DL' or "http" in txt:
+        download_video(message)
     else:
-        bot.send_message(cid, "እባክዎ ከታች ካሉት አማራጮች አንዱን ይምረጡ።")
+        bot.send_message(cid, "እባክዎ ከተዘረዘሩት አማራጮች አንዱን ይምረጡ።")
 
-# --- 8. STARTUP ---
+# --- 8. SAFE STARTUP ---
 if __name__ == "__main__":
-    print("ቦቱ በመነሳት ላይ ነው...")
-    
-    # የቆዩ ግንኙነቶችን በሃይል ያጸዳል
     bot.remove_webhook()
-    time.sleep(2) # ለ 2 ሰከንድ ፋታ ይሰጣል
-    
-    print("ቦቱ በተሳካ ሁኔታ ስራ ጀምሯል!")
-    # 'skip_pending=True' ከተከማቹ መልእክቶች የሚመጣን ግጭት ያስወግዳል
-    bot.infinity_polling(skip_pending=True)
+    time.sleep(3) # የድሮውን ግንኙነት ለማጽዳት ፋታ ይሰጣል
+    print("ቦቱ በአዲሱ Token ስራ ጀምሯል!")
+    bot.infinity_polling()
