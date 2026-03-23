@@ -9,25 +9,20 @@ from telebot import types
 # --- Configuration ---
 TOKEN = '8410032982:AAHO3iuAN4AMvKBWo6KIEyRqnMm4g4bVQGM'
 RENDER_URL = "https://revoked.onrender.com"
-# --- Gemini AI Configuration (Safety & Privacy Fix) ---
+# --- Gemini AI Configuration (Direct Fix) ---
 import os
 
-# ቁልፉን በምስጢር ከሬንደር (Render Dashboard) ኢንቫይሮመንት ይወስደዋል
-GEMINI_KEY = os.environ.get('GEMINI_API_KEY')
-genai.configure(api_key=GEMINI_KEY)
+# Render ላይ API_KEY ብለህ የሰጠኸውን እዚህ ይወስደዋል
+GEMINI_KEY = os.getenv('API_KEY')
 
-# ደህንነት (Safety) ገደቦችን ለማለፍ
-safety_settings = [
-    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-]
-
-model = genai.GenerativeModel(
-    model_name='gemini-1.5-flash',
-    safety_settings=safety_settings
-)
+if GEMINI_KEY:
+    genai.configure(api_key=GEMINI_KEY)
+    model = genai.GenerativeModel(
+        model_name='gemini-1.5-flash',
+        safety_settings=safety_settings
+    )
+else:
+    print("❌ API Key Not Found in Environment!")
 
 bot = telebot.TeleBot(TOKEN, threaded=False)
 server = Flask(__name__)
