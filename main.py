@@ -12,10 +12,9 @@ RENDER_URL = "https://revoked.onrender.com"
 bot = telebot.TeleBot(TOKEN, threaded=False)
 server = Flask(__name__)
 
-# ተጠቃሚዎችን ለመመዝገብ (Memory)
+# ተጠቃሚዎችን ለመመዝገብ
 registered_users = {}
 
-# ቪዲዮውን ከቴሌግራም ላይ በጊዜ ገደብ የሚያጠፋ ተግባር
 def delayed_delete(chat_id, message_id, delay_seconds):
     time.sleep(delay_seconds)
     try:
@@ -36,19 +35,17 @@ def process_name(message):
     chat_id = message.chat.id
     name = message.text
     registered_users[chat_id] = {'name': name}
-    
     markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
     button = types.KeyboardButton("📲 ስልክ ቁጥር ለመላክ ተጫን", request_contact=True)
     markup.add(button)
-    
-    msg = bot.send_message(chat_id, f"ጥሩ ነው {name}! አሁን ደግሞ ስልክህን ላክና ምዝገባህን ጨርስ።", reply_markup=markup)
+    msg = bot.send_message(chat_id, f"ጥሩ ነው {name}! አሁን ስልክህን ላክና ምዝገባህን ጨርስ።", reply_markup=markup)
     bot.register_next_step_handler(msg, process_phone)
 
 def process_phone(message):
     chat_id = message.chat.id
     if message.contact:
         registered_users[chat_id]['phone'] = message.contact.phone_number
-        bot.send_message(chat_id, "ምዝገባህ ተጠናቋል! ✅\nአሁን ማንኛውንም የቪዲዮ ሊንክ መላክ ትችላለህ።", reply_markup=types.ReplyKeyboardRemove())
+        bot.send_message(chat_id, "ምዝገባህ ተጠናቋል! ✅\nአሁን ማንኛውንም ሊንክ መላክ ትችላለህ።", reply_markup=types.ReplyKeyboardRemove())
     else:
         bot.send_message(chat_id, "እባክህ በተኑን ተጠቅመህ ስልክህን ላክ።")
 
@@ -56,19 +53,14 @@ def process_phone(message):
 def handle_video(message):
     chat_id = message.chat.id
     url = message.text
-    
-    # ምዝገባ ማረጋገጫ
     if chat_id not in registered_users:
-        bot.reply_to(message, "⚠️ ይቅርታ! አገልግሎቱን ለማግኘት መጀመሪያ መመዝገብ አለብህ። /start ብለህ ጀምር።")
+        bot.reply_to(message, "⚠️ መጀመሪያ /start ብለህ ተመዝገብ።")
         return
 
-    # የቪዲዮ ሊንክ መሆኑን ቼክ ማድረግ
     if any(site in url for site in ["youtube.com", "youtu.be", "tiktok.com", "instagram.com"]):
         sent_msg = bot.reply_to(message, "ቪዲዮውን በማዘጋጀት ላይ ነኝ... ⏳")
         file_name = f"video_{chat_id}.mp4"
-        
         try:
-            # ቲክቶክ Block እንዳያደርግ የተጨመሩ ጥንቃቄዎች (Headers)
             ydl_opts = {
                 'format': 'best',
                 'outtmpl': file_name,
@@ -77,28 +69,38 @@ def handle_video(message):
                 'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'referer': 'https://www.tiktok.com/',
                 'nocheckcertificate': True,
-                'geo_bypass': True,
             }
-            
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
             
-            # ቪዲዮውን መላክ
             with open(file_name, 'rb') as video:
                 caption = "👑 ባለቤት፦ KING DANIEL\n\n⚠️ ይህ ቪዲዮ ከ3 ደቂቃ በኋላ ይጠፋል።"
                 bot_video = bot.send_video(chat_id, video, caption=caption)
-                
-                # ራስ-ሰር ማጥፊያውን ማስጀመር (180 ሰከንድ = 3 ደቂቃ)
                 threading.Thread(target=delayed_delete, args=(chat_id, bot_video.message_id, 180)).start()
             
-            # ሰርቨሩ ላይ ያለውን ፋይል ማጥፋት
             if os.path.exists(file_name):
                 os.remove(file_name)
             bot.delete_message(chat_id, sent_msg.message_id)
-            
         except Exception as e:
             error_str = str(e)
-            if "blocked" in error_str.lower():
-                bot.edit_message_text("⚠️ ቲክቶክ ሰርቨሩን አግዶታል። እባክህ ሌላ ሊንክ ሞክር ወይም ቆይተህ ሞክር።", chat_id, sent_msg.message_id)
-            else:
-                bot.edit_message_text(f"ስህተት ተፈጥሯል፦ {error_str[:
+            # እዚህ ጋር ነው ስህተቱ የነበረው፣ አሁን ተስተካክሏል
+            bot.edit_message_text(f"ስህተት ተፈጥሯል፦ {error_str[:100]}", chat_id, sent_msg.message_id)
+            if os.path.exists(file_name):
+                os.remove(file_name)
+    else:
+        bot.reply_to(message, "እባክህ ትክክለኛ ሊንክ ላክልኝ።")
+
+@server.route('/' + TOKEN, methods=['POST'])
+def getMessage():
+    bot.process_new_updates([telebot.types.Update.de_json(request.get_data().decode('utf-8'))])
+    return "!", 200
+
+@server.route("/")
+def webhook():
+    bot.remove_webhook()
+    bot.set_webhook(url=RENDER_URL + '/' + TOKEN)
+    return "Bot is Running!", 200
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    server.run(host="0.0.0.0", port=port)
