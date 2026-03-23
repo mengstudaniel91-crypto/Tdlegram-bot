@@ -47,23 +47,24 @@ def weather_start(message):
 
 def get_weather_fancy(message):
     city_input = message.text.strip()
-    # ክፍት ቦታ ካለ ለ URL እንዲመች መቀየር (ለምሳሌ Addis ababa -> Addis%20ababa)
-    city_encoded = urllib.parse.quote(city_input)
+    # ክፍት ቦታን (Space) ለማስተካከል (ለምሳሌ Addis ababa -> Addis+ababa)
+    city_encoded = city_input.replace(" ", "+")
     
     bot.send_chat_action(message.chat.id, 'find_location')
     
     try:
-        # መረጃውን ለማምጣት
+        # በአዲሱ ፎርማት መረጃውን ለማምጣት
         url = f"https://wttr.in/{city_encoded}?format=%C|%t|%h|%w|%l"
         response = requests.get(url, timeout=10)
         
         if response.status_code != 200 or "|" not in response.text:
-            bot.reply_to(message, f"⚠️ ከተማውን '{city_input}' ማግኘት አልቻልኩም። እባክህ ስሙን በትክክል ጻፍ።")
+            bot.reply_to(message, f"⚠️ ከተማውን '{city_input}' ማግኘት አልቻልኩም።")
             return
 
         res = response.text.split("|")
         condition, temp_raw, humidity, wind, location = res[0], res[1], res[2], res[3], res[4]
         
+        # የሙቀት ምልክቱን ማስተካከያ
         temp = temp_raw.replace("+", "").replace("C", "°C")
         
         translations = {
@@ -81,15 +82,12 @@ def get_weather_fancy(message):
             f"🌡️ <b>ሙቀት፦ {temp}</b>\n"
             f"💧 <b>እርጥበት፦ {humidity}</b>\n"
             f"💨 <b>ንፋስ፦ {wind}</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"📅 <b>የዛሬ ትንበያ፦</b>\n"
-            f"• አሁን፦ {temp} {desc_am}\n"
             f"━━━━━━━━━━━━━━━━━━"
         )
         
         bot.send_photo(message.chat.id, bg_url, caption=report, parse_mode="HTML")
     except Exception as e:
-        bot.reply_to(message, "⚠️ ሲስተሙ ለጊዜው አልሰራም። እባክህ ቆይተህ ሞክር።")
+        bot.reply_to(message, "⚠️ ሲስተሙ ለጊዜው አልሰራም።")
 
 # --- AI Image & Chat Placeholder ---
 @bot.message_handler(func=lambda m: m.text == '🎨 AI ምስል መፍጠሪያ')
