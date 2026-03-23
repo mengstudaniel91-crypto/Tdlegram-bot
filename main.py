@@ -1,43 +1,53 @@
 import telebot
-import os
-import time
-import requests
-from threading import Thread
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from telebot import types
 
-# --- CONFIG ---
 TOKEN = '8410032982:AAHO3iuAN4AMvKBWo6KIEyRqnMm4g4bVQGM'
-bot = telebot.TeleBot(TOKEN, threaded=False) # ግጭትን ለመከላከል False ተደርጓል
+bot = telebot.TeleBot(TOKEN, threaded=False)
 
-# --- SERVER FOR RENDER ---
-class SimpleServer(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Bot is Running")
+# ለጊዜው መረጃን በMemory ለመያዝ (በኋላ ወደ Database መቀየር ይቻላል)
+user_data = {}
 
-def run():
-    httpd = HTTPServer(('0.0.0.0', int(os.environ.get("PORT", 10000))), SimpleServer)
-    httpd.serve_forever()
-
-# --- BOT COMMANDS ---
+# --- 1. START COMMAND ---
 @bot.message_handler(commands=['start'])
-def welcome(message):
-    bot.reply_to(message, "ሰላም ዳንኤል! ቦቱ አሁን በትክክል መስራት ጀምሯል።")
+def start(message):
+    chat_id = message.chat.id
+    # ተጠቃሚው ቀድሞ ተመዝግቦ ከሆነ
+    if chat_id in user_data:
+        bot.send_message(chat_id, f"እንኳን ደህና መጣህ {user_data[chat_id]['name']}! የቪዲዮ ሊንክ ላክልኝ።")
+    else:
+        msg = bot.send_message(chat_id, "እንኳን ደህና መጣህ! ለመጀመር እባክህ ሙሉ ስምህን ጻፍ፦")
+        bot.register_next_step_handler(msg, process_name)
 
+# --- 2. ስም መቀበያ ---
+def process_name(message):
+    chat_id = message.chat.id
+    user_data[chat_id] = {'name': message.text}
+    
+    # ስልክ ቁጥር ለመጠየቅ በተን (Button) መጠቀም
+    markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
+    button = types.KeyboardButton("ስልክ ቁጥሬን ላክ", request_contact=True)
+    markup.add(button)
+    
+    msg = bot.send_message(chat_id, f"ደስ ይላል {message.text}! አሁን ደግሞ ከታች ያለውን በተን ተጭነህ ስልክህን ላክልኝ።", reply_markup=markup)
+    bot.register_next_step_handler(msg, process_phone)
+
+# --- 3. ስልክ መቀበያ ---
+def process_phone(message):
+    chat_id = message.chat.id
+    if message.contact:
+        user_data[chat_id]['phone'] = message.contact.phone_number
+        bot.send_message(chat_id, "ምዝገባህ ተጠናቋል! ✅ አሁን የፈለግከውን የቪዲዮ ሊንክ መላክ ትችላለህ።", reply_markup=types.ReplyKeyboardRemove())
+    else:
+        bot.send_message(chat_id, "እባክህ በተኑን ተጠቅመህ ስልክህን ላክ።")
+
+# --- 4. ቪዲዮ ሊንክ መቀበያ (ECHO ለጊዜው) ---
 @bot.message_handler(func=lambda m: True)
-def echo_all(message):
-    bot.reply_to(message, f"የላክኸው መልእክት፦ {message.text}")
+def handle_message(message):
+    chat_id = message.chat.id
+    if chat_id in user_data:
+        bot.reply_to(message, "ሊንኩ ደርሶኛል! ዳውንሎድ ለማድረግ በማዘጋጀት ላይ ነኝ...")
+        # እዚህ ጋር የ yt-dlp ኮድ ይገባል
+    else:
+        bot.send_message(chat_id, "እባክህ መጀመሪያ ለመመዝገብ /start በል።")
 
-# --- START ---
-if __name__ == "__main__":
-    # 1. ሰርቨሩን በጎን ያስነሳል
-    Thread(target=run, daemon=True).start()
-    
-    # 2. ማንኛውንም የቆየ ግንኙነት ያፈርሳል
-    bot.remove_webhook()
-    time.sleep(2)
-    
-    print("Bot is Starting...")
-    # 3. ቦቱን ያስነሳል
-    bot.infinity_polling(timeout=10, long_polling_timeout=5)
+bot.infinity_polling(skip_pending=True)
