@@ -128,7 +128,11 @@ def handle_all_messages(message):
 # --- 8. STARTUP ---
 if __name__ == "__main__":
     print("ቦቱ በመነሳት ላይ ነው...")
+    
+    # የቆዩ ግንኙነቶችን በሃይል ያጸዳል
     bot.remove_webhook()
-    time.sleep(1)
+    time.sleep(2) # ለ 2 ሰከንድ ፋታ ይሰጣል
+    
     print("ቦቱ በተሳካ ሁኔታ ስራ ጀምሯል!")
-    bot.infinity_polling()
+    # 'skip_pending=True' ከተከማቹ መልእክቶች የሚመጣን ግጭት ያስወግዳል
+    bot.infinity_polling(skip_pending=True)
