@@ -39,42 +39,40 @@ def weather_start(message):
     bot.register_next_step_handler(msg, get_weather_final)
 
 def get_weather_final(message):
-    city_input = message.text.strip().replace(" ", "+")
+    city = message.text.strip()
     bot.send_chat_action(message.chat.id, 'find_location')
     
+    # በጣም ፈጣን እና አስተማማኝ API
+    api_key = "8f16183a2a6d88f98c8c51139745781a"
+    url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric"
+    
     try:
-        # መረጃውን ከ wttr.in ማምጣት
-        url = f"https://wttr.in/{city_input}?format=%C|%t|%h|%w|%l"
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code != 200 or "|" not in response.text:
-            bot.reply_to(message, "⚠️ ከተማውን ማግኘት አልቻልኩም። እባክህ ስሙን በትክክል ጻፍ።")
-            return
-
-        data = response.text.split("|")
-        condition, temp, hum, wind, loc = data[0], data[1].replace("+", ""), data[2], data[3], data[4]
-        
-        # ትርጉም
-        trans = {"Clear": "ፀሐያማ ☀️", "Sunny": "ፀሐያማ ☀️", "Partly cloudy": "በከፊል ደመናማ ⛅", "Cloudy": "ደመናማ ☁️", "Light rain": "ቀላል ዝናብ 🌧️", "Patchy rain nearby": "ዝቅተኛ ዝናብ 🌦️"}
-        desc_am = trans.get(condition, condition)
-        
-        report = (
-            f"📍 <b>አካባቢ፦ {loc}</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"✨ <b>ሁኔታ፦ {desc_am}</b>\n"
-            f"🌡️ <b>ሙቀት፦ {temp}</b>\n"
-            f"💧 <b>እርጥበት፦ {hum}</b>\n"
-            f"💨 <b>ንፋስ፦ {wind}</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"📅 <b>የ3 ቀን ትንበያ፦</b>\n"
-            f"• ዛሬ፦ {temp} {desc_am}\n"
-            f"• ነገ፦ {temp} ☀️ ጥራ ያለ ሰማይ\n"
-            f"• ከነገ ወዲያ፦ {temp} ⛅ በከፊል ደመናማ\n"
-            f"━━━━━━━━━━━━━━━━━━"
-        )
-        bot.send_photo(message.chat.id, get_weather_bg(condition), caption=report, parse_mode="HTML")
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            temp = data['main']['temp']
+            hum = data['main']['humidity']
+            desc = data['weather'][0]['main']
+            
+            # ትርጉም
+            trans = {"Clear": "☀️ ፀሐያማ", "Clouds": "☁️ ደመናማ", "Rain": "🌧️ ዝናባማ", "Drizzle": "🌦️ ካፊያ", "Thunderstorm": "⛈️ ነጎድጓድ"}
+            desc_am = trans.get(desc, desc)
+            
+            report = (
+                f"📍 <b>አካባቢ፦ {city}</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"✨ <b>ሁኔታ፦ {desc_am}</b>\n"
+                f"🌡️ <b>ሙቀት፦ {temp}°C</b>\n"
+                f"💧 <b>እርጥበት፦ {hum}%</b>\n"
+                f"━━━━━━━━━━━━━━━━━━"
+            )
+            # ከሁኔታው ጋር የሚሄድ ምስል
+            bg_url = get_weather_bg(desc)
+            bot.send_photo(message.chat.id, bg_url, caption=report, parse_mode="HTML")
+        else:
+            bot.reply_to(message, f"⚠️ ከተማውን '{city}' ማግኘት አልቻልኩም።")
     except:
-        bot.reply_to(message, "⚠️ ሲስተሙ ተጠምዷል። እባክህ ቆይተህ ሞክር።")
+        bot.reply_to(message, "⚠️ የኢንተርኔት መቆራረጥ አጋጥሟል። እባክህ ደግመህ ሞክር።")
 
 # --- Webhook Setup ---
 @server.route('/' + TOKEN, methods=['POST'])
