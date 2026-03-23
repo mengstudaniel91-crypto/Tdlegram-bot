@@ -9,8 +9,11 @@ from telebot import types
 # --- Configuration ---
 TOKEN = '8410032982:AAHO3iuAN4AMvKBWo6KIEyRqnMm4g4bVQGM'
 RENDER_URL = "https://revoked.onrender.com"
-# --- Gemini AI Configuration (Safety Fix) ---
-GEMINI_KEY = 'AIzaSyBkZ2Fnf8KNhztz11hQd59adNf69peZfD0'
+# --- Gemini AI Configuration (Safety & Privacy Fix) ---
+import os
+
+# ቁልፉን በምስጢር ከሬንደር (Render Dashboard) ኢንቫይሮመንት ይወስደዋል
+GEMINI_KEY = os.environ.get('GEMINI_API_KEY')
 genai.configure(api_key=GEMINI_KEY)
 
 # ደህንነት (Safety) ገደቦችን ለማለፍ
