@@ -131,9 +131,18 @@ def get_gemini_response(message):
     try:
         # ለGemini ጥያቄውን መላክ
         response = model.generate_content(user_query)
-        bot.reply_to(message, response.text, parse_mode="Markdown")
+        
+        # የGemini መልስ ባዶ ካልሆነ
+        if response and response.text:
+            # ምልክቶችን ለቴሌግራም ማስተካከል (Markdown ስህተት እንዳይፈጥር)
+            final_text = response.text.replace("*", "") # ጊዜያዊ መፍትሄ
+            bot.reply_to(message, final_text)
+        else:
+            bot.reply_to(message, "⚠️ AIው ምላሽ መስጠት አልቻለም። እባክህ ጥያቄህን በሌላ መንገድ ጠይቀኝ።")
+            
     except Exception as e:
-        bot.reply_to(message, "⚠️ ይቅርታ፣ AI ሰርቨሩ ለጊዜው ምላሽ መስጠት አልቻለም።")
+        print(f"Error: {e}") # ለሬንደር Log እንዲጠቅመን
+        bot.reply_to(message, "⚠️ የሰርቨር መጨናነቅ አጋጥሟል። እባክህ ጥቂት ቆይተህ ድገመው።")
         
 # --- Remaining Placeholders (Quiz & Chat) ---
 @bot.message_handler(func=lambda m: m.text in ['📝 ፈተናዎች (Quizzes)'])
