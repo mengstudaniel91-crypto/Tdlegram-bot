@@ -83,10 +83,34 @@ def get_weather_clean(message):
     except:
         bot.reply_to(message, "⚠️ ሲስተሙ ለጊዜው አልሰራም።")
 
-# --- Placeholders ---
-@bot.message_handler(func=lambda m: m.text in ['📝 ፈተናዎች (Quizzes)', '🎨 AI ምስል መፍጠሪያ', '🤖 AI ወሬ (Chat)'])
+def generate_ai_image(message):
+    prompt = message.text.strip().replace(" ", "%20")
+    if not prompt:
+        bot.reply_to(message, "⚠️ እባክህ የምስሉን መግለጫ በእንግሊዝኛ ጻፍ።")
+        return
+
+    wait_msg = bot.reply_to(message, "🎨 ምስሉን በዳንኤል AI እያዘጋጀሁ ነው... እባክህ ጥቂት ሰከንዶች ጠብቅ።")
+    bot.send_chat_action(message.chat.id, 'upload_photo')
+    
+    # ምስል መፍጠሪያ URL
+    image_url = f"https://image.pollinations.ai/prompt/{prompt}?width=1024&height=1024&nologo=true"
+    
+    try:
+        bot.send_photo(message.chat.id, image_url, caption=f"🎨 ያንተ ምስል፦ <b>{message.text}</b>\n👑 በዳንኤል AI", parse_mode="HTML")
+        bot.delete_message(message.chat.id, wait_msg.message_id)
+    except:
+        bot.edit_message_text("⚠️ ምስሉን መፍጠር አልቻልኩም። ቆይተህ ሞክር።", message.chat.id, wait_msg.message_id)
+
+# --- AI Image Button Handler ---
+@bot.message_handler(func=lambda m: m.text == '🎨 AI ምስል መፍጠሪያ')
+def ai_image_start(message):
+    msg = bot.send_message(message.chat.id, "ለመፍጠር የፈለግከውን ምስል በእንግሊዝኛ ግለጽልኝ (ለምሳሌ: A lion in a forest)፦")
+    bot.register_next_step_handler(msg, generate_ai_image)
+
+# --- Remaining Placeholders (Quiz & Chat) ---
+@bot.message_handler(func=lambda m: m.text in ['📝 ፈተናዎች (Quizzes)', '🤖 AI ወሬ (Chat)'])
 def coming_soon(message):
-    bot.reply_to(message, "ይህ አገልግሎት በቅርቡ ይጨመራል... 🛠️")
+    bot.reply_to(message, "ይህ አገልግሎት (Gemini AI) በቅርቡ ይጨመራል... 🛠️")
 
 # --- Webhook Setup ---
 @server.route('/' + TOKEN, methods=['POST'])
