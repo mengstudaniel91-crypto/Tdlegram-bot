@@ -6,12 +6,13 @@ from flask import Flask, request
 from telebot import types
 import yt_dlp
 
+# --- ኮንፊገሬሽን ---
 TOKEN = '8410032982:AAHO3iuAN4AMvKBWo6KIEyRqnMm4g4bVQGM'
 RENDER_URL = "https://revoked.onrender.com"
 bot = telebot.TeleBot(TOKEN, threaded=False)
 server = Flask(__name__)
 
-# ተጠቃሚዎችን ለመመዝገብ (Memory - በኋላ ወደ Database መቀየር ይቻላል)
+# ተጠቃሚዎችን ለመመዝገብ (Memory)
 registered_users = {}
 
 # ቪዲዮውን ከቴሌግራም ላይ በጊዜ ገደብ የሚያጠፋ ተግባር
@@ -19,8 +20,8 @@ def delayed_delete(chat_id, message_id, delay_seconds):
     time.sleep(delay_seconds)
     try:
         bot.delete_message(chat_id, message_id)
-    except:
-        pass
+    except Exception as e:
+        print(f"Delete Error: {e}")
 
 @bot.message_handler(commands=['start'])
 def start(message):
@@ -56,53 +57,48 @@ def handle_video(message):
     chat_id = message.chat.id
     url = message.text
     
-    # ምዝገባውን ማረጋገጫ
+    # ምዝገባ ማረጋገጫ
     if chat_id not in registered_users:
         bot.reply_to(message, "⚠️ ይቅርታ! አገልግሎቱን ለማግኘት መጀመሪያ መመዝገብ አለብህ። /start ብለህ ጀምር።")
         return
 
-    if "youtube.com" in url or "youtu.be" in url or "tiktok.com" in url:
+    # የቪዲዮ ሊንክ መሆኑን ቼክ ማድረግ
+    if any(site in url for site in ["youtube.com", "youtu.be", "tiktok.com", "instagram.com"]):
         sent_msg = bot.reply_to(message, "ቪዲዮውን በማዘጋጀት ላይ ነኝ... ⏳")
         file_name = f"video_{chat_id}.mp4"
         
         try:
+            # ቲክቶክ Block እንዳያደርግ የተጨመሩ ጥንቃቄዎች (Headers)
             ydl_opts = {
                 'format': 'best',
                 'outtmpl': file_name,
                 'quiet': True,
-                'no_warnings': True
+                'no_warnings': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'referer': 'https://www.tiktok.com/',
+                'nocheckcertificate': True,
+                'geo_bypass': True,
             }
+            
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
             
+            # ቪዲዮውን መላክ
             with open(file_name, 'rb') as video:
-                # ቪዲዮውን መላክ
-                caption = "👑 ባለቤት፦ KING DANIEL\n\n⚠️ ይህ ቪዲዮ ለደህንነት ሲባል ከ3 ደቂቃ በኋላ በራሱ ይጠፋል።"
+                caption = "👑 ባለቤት፦ KING DANIEL\n\n⚠️ ይህ ቪዲዮ ከ3 ደቂቃ በኋላ ይጠፋል።"
                 bot_video = bot.send_video(chat_id, video, caption=caption)
                 
-                # ራስ-ሰር ማጥፊያውን በሌላ Thread ማስጀመር (ቦቱ እንዳይቆም)
+                # ራስ-ሰር ማጥፊያውን ማስጀመር (180 ሰከንድ = 3 ደቂቃ)
                 threading.Thread(target=delayed_delete, args=(chat_id, bot_video.message_id, 180)).start()
             
-            # ሰርቨሩ ላይ ያለውን ፋይል ወዲያውኑ ማጽዳት
-            os.remove(file_name)
+            # ሰርቨሩ ላይ ያለውን ፋይል ማጥፋት
+            if os.path.exists(file_name):
+                os.remove(file_name)
             bot.delete_message(chat_id, sent_msg.message_id)
             
         except Exception as e:
-            bot.edit_message_text(f"ስህተት ተፈጥሯል፦ {str(e)}", chat_id, sent_msg.message_id)
-    else:
-        bot.reply_to(message, "እባክህ ትክክለኛ የቪዲዮ ሊንክ ላክልኝ።")
-
-# --- WEBHOOK SECTION ---
-@server.route('/' + TOKEN, methods=['POST'])
-def getMessage():
-    bot.process_new_updates([telebot.types.Update.de_json(request.get_data().decode('utf-8'))])
-    return "!", 200
-
-@server.route("/")
-def webhook():
-    bot.remove_webhook()
-    bot.set_webhook(url=RENDER_URL + '/' + TOKEN)
-    return "Bot is Running!", 200
-
-if __name__ == "__main__":
-    server.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+            error_str = str(e)
+            if "blocked" in error_str.lower():
+                bot.edit_message_text("⚠️ ቲክቶክ ሰርቨሩን አግዶታል። እባክህ ሌላ ሊንክ ሞክር ወይም ቆይተህ ሞክር።", chat_id, sent_msg.message_id)
+            else:
+                bot.edit_message_text(f"ስህተት ተፈጥሯል፦ {error_str[:
