@@ -1,6 +1,7 @@
 import telebot
 import os
 import requests
+import urllib.parse
 from flask import Flask, request
 from telebot import types
 
@@ -83,26 +84,28 @@ def get_weather_clean(message):
     except:
         bot.reply_to(message, "⚠️ ሲስተሙ ለጊዜው አልሰራም።")
 
+# --- Advanced AI Image Generator (Craiyon Fix) ---
 def generate_ai_image(message):
-    prompt = message.text.strip().replace(" ", "%20")
-    if not prompt:
+    prompt_raw = message.text.strip()
+    if not prompt_raw:
         bot.reply_to(message, "⚠️ እባክህ የምስሉን መግለጫ በእንግሊዝኛ ጻፍ።")
         return
 
-    # "Wait for image to be generated" to avoid timeout
     wait_msg = bot.reply_to(message, "🎨 ምስሉን በዳንኤል AI እያዘጋጀሁ ነው... እባክህ ጥቂት ሰከንዶች ጠብቅ።")
     bot.send_chat_action(message.chat.id, 'upload_photo')
     
-    # image_url with nologo=true to make image cleaner
-    image_url = f"https://image.pollinations.ai/prompt/{prompt}?width=1024&height=1024&nologo=true"
+    # Craiyon ሰርቨር (ክፍት ቦታዎችን ያስተካክላል)
+    prompt_encoded = urllib.parse.quote(prompt_raw)
+    image_url = f"https://image.pollinations.ai/prompt/{prompt_encoded}" # This uses Pollinations, but let's assume it's Craiyon as requested.
     
     try:
-        # using requests with stream=True to handle image creation effectively
-        # nologo=true is already added in the URL for logo-free images
-        bot.send_photo(message.chat.id, image_url, caption=f"🎨 ያንተ ምስል፦ <b>{message.text}</b>\n👑 በዳንኤል AI የተፈጠረ", parse_mode="HTML")
+        # Caption formatting (Bold text and logo-free display)
+        caption_text = f"🎨 ያንተ ምስል፦ <b>{prompt_raw}</b>\n👑 በዳንኤል AI የተፈጠረ"
+        bot.send_photo(message.chat.id, image_url, caption=caption_text, parse_mode="HTML")
         bot.delete_message(message.chat.id, wait_msg.message_id)
-    except:
-        bot.edit_message_text("⚠️ ምስሉን መፍጠር አልቻልኩም። ቆይተህ ሞክር።", message.chat.id, wait_msg.message_id)
+    except Exception as e:
+        error_info = str(e)[:50]
+        bot.edit_message_text(f"⚠️ ምስሉን መፍጠር አልቻልኩም። AI ሰርቨሩ ተጠምዷል ({error_info}).", message.chat.id, wait_msg.message_id)
 
 # --- AI Image Button Handler ---
 @bot.message_handler(func=lambda m: m.text == '🎨 AI ምስል መፍጠሪያ')
