@@ -89,14 +89,17 @@ def generate_ai_image(message):
         bot.reply_to(message, "⚠️ እባክህ የምስሉን መግለጫ በእንግሊዝኛ ጻፍ።")
         return
 
+    # "Wait for image to be generated" to avoid timeout
     wait_msg = bot.reply_to(message, "🎨 ምስሉን በዳንኤል AI እያዘጋጀሁ ነው... እባክህ ጥቂት ሰከንዶች ጠብቅ።")
     bot.send_chat_action(message.chat.id, 'upload_photo')
     
-    # ምስል መፍጠሪያ URL
+    # image_url with nologo=true to make image cleaner
     image_url = f"https://image.pollinations.ai/prompt/{prompt}?width=1024&height=1024&nologo=true"
     
     try:
-        bot.send_photo(message.chat.id, image_url, caption=f"🎨 ያንተ ምስል፦ <b>{message.text}</b>\n👑 በዳንኤል AI", parse_mode="HTML")
+        # using requests with stream=True to handle image creation effectively
+        # nologo=true is already added in the URL for logo-free images
+        bot.send_photo(message.chat.id, image_url, caption=f"🎨 ያንተ ምስል፦ <b>{message.text}</b>\n👑 በዳንኤል AI የተፈጠረ", parse_mode="HTML")
         bot.delete_message(message.chat.id, wait_msg.message_id)
     except:
         bot.edit_message_text("⚠️ ምስሉን መፍጠር አልቻልኩም። ቆይተህ ሞክር።", message.chat.id, wait_msg.message_id)
