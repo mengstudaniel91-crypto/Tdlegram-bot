@@ -1,6 +1,7 @@
 import telebot
 import os
 import requests
+import urllib.parse # ክፍት ቦታዎችን ለማስተካከል
 from flask import Flask, request
 from telebot import types
 
@@ -11,19 +12,18 @@ RENDER_URL = "https://revoked.onrender.com"
 bot = telebot.TeleBot(TOKEN, threaded=False)
 server = Flask(__name__)
 
-# --- Weather Image Logic (ትልቅ እና የሚያምር ምስል) ---
+# --- Weather Image Logic ---
 def get_weather_bg(condition):
     c = condition.lower()
-    # ከፍተኛ ጥራት ያላቸው ምስሎች (Unsplash)
     if "sun" in c or "clear" in c: 
-        return "https://images.unsplash.com/photo-1566433290822-297594589257?auto=format&fit=crop&w=800&q=80" # Sunny
-    if "rain" in c or "drizzle" in c or "patchy" in c: 
-        return "https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?auto=format&fit=crop&w=800&q=80" # Rainy
-    if "cloud" in c or "overcast" in c: 
-        return "https://images.unsplash.com/photo-1534088568595-a066f710b721?auto=format&fit=crop&w=800&q=80" # Cloudy
+        return "https://images.unsplash.com/photo-1566433290822-297594589257?auto=format&fit=crop&w=800&q=80"
+    if "rain" in c or "drizzle" in c or "patchy" in c or "shower" in c: 
+        return "https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?auto=format&fit=crop&w=800&q=80"
+    if "cloud" in c or "overcast" in c or "mist" in c: 
+        return "https://images.unsplash.com/photo-1534088568595-a066f710b721?auto=format&fit=crop&w=800&q=80"
     if "thunder" in c: 
-        return "https://images.unsplash.com/photo-1605721911519-3dfeb3be25e7?auto=format&fit=crop&w=800&q=80" # Storm
-    return "https://images.unsplash.com/photo-1504608524841-42fe6f032b4b?auto=format&fit=crop&w=800&q=80" # Default
+        return "https://images.unsplash.com/photo-1605721911519-3dfeb3be25e7?auto=format&fit=crop&w=800&q=80"
+    return "https://images.unsplash.com/photo-1504608524841-42fe6f032b4b?auto=format&fit=crop&w=800&q=80"
 
 # --- Main Menu ---
 def main_menu():
@@ -39,32 +39,39 @@ def main_menu():
 def start(message):
     bot.send_message(message.chat.id, f"ሰላም {message.from_user.first_name}! 👑 የዳንኤል Super Bot ዝግጁ ነው።", reply_markup=main_menu())
 
-# --- Weather Section ---
+# --- Improved Weather Section ---
 @bot.message_handler(func=lambda m: m.text == '🌤️ የአየር ሁኔታ')
 def weather_start(message):
-    msg = bot.send_message(message.chat.id, "የከተማውን ስም በእንግሊዝኛ ጻፍ (ለምሳሌ: Arba Minch)፦")
+    msg = bot.send_message(message.chat.id, "የከተማውን ስም በእንግሊዝኛ ጻፍ (ለምሳሌ: Addis Ababa ወይም Arba Minch)፦")
     bot.register_next_step_handler(msg, get_weather_fancy)
 
 def get_weather_fancy(message):
-    city = message.text.strip()
+    city_input = message.text.strip()
+    # ክፍት ቦታ ካለ ለ URL እንዲመች መቀየር (ለምሳሌ Addis ababa -> Addis%20ababa)
+    city_encoded = urllib.parse.quote(city_input)
+    
     bot.send_chat_action(message.chat.id, 'find_location')
+    
     try:
-        url = f"https://wttr.in/{city}?format=%C|%t|%h|%w|%l"
-        res = requests.get(url).text.split("|")
+        # መረጃውን ለማምጣት
+        url = f"https://wttr.in/{city_encoded}?format=%C|%t|%h|%w|%l"
+        response = requests.get(url, timeout=10)
         
+        if response.status_code != 200 or "|" not in response.text:
+            bot.reply_to(message, f"⚠️ ከተማውን '{city_input}' ማግኘት አልቻልኩም። እባክህ ስሙን በትክክል ጻፍ።")
+            return
+
+        res = response.text.split("|")
         condition, temp_raw, humidity, wind, location = res[0], res[1], res[2], res[3], res[4]
         
-        # የፊደል ስህተቶችን ማጽዳት
         temp = temp_raw.replace("+", "").replace("C", "°C")
         
         translations = {
-            "Clear": "ፀሐያማ ☀️", "Sunny": "ፀሐያማ ☀️", "Partly cloudy": "በከፊል ደመናማ ⛅", 
-            "Cloudy": "ደመናማ ☁️", "Overcast": "ደመናማ ☁️", "Patchy rain nearby": "ዝቅተኛ ዝናብ 🌦️",
-            "Light rain": "ቀላል ዝናብ 🌧️", "Moderate rain": "መካከለኛ ዝናብ 🌧️"
+            "Clear": "☀️ ፀሐያማ", "Sunny": "☀️ ፀሐያማ", "Partly cloudy": "⛅ በከፊል ደመናማ", 
+            "Cloudy": "☁️ ደመናማ", "Overcast": "☁️ ደመናማ", "Patchy rain nearby": "🌦️ አነስተኛ ዝናብ",
+            "Light rain": "🌧️ ቀላል ዝናብ", "Moderate rain": "🌧️ መካከለኛ ዝናብ", "Mist": "🌫️ ጉም"
         }
         desc_am = translations.get(condition, condition)
-        
-        # ከሁኔታው ጋር የሚሄድ ትልቅ ምስል ማምጣት
         bg_url = get_weather_bg(condition)
 
         report = (
@@ -75,17 +82,16 @@ def get_weather_fancy(message):
             f"💧 <b>እርጥበት፦ {humidity}</b>\n"
             f"💨 <b>ንፋስ፦ {wind}</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"📅 <b>የ3 ቀን ትንበያ፦</b>\n"
-            f"• ዛሬ፦ {temp} {desc_am}\n"
-            f"• ነገ፦ {temp} ⛅ ደመናማ\n"
+            f"📅 <b>የዛሬ ትንበያ፦</b>\n"
+            f"• አሁን፦ {temp} {desc_am}\n"
             f"━━━━━━━━━━━━━━━━━━"
         )
         
         bot.send_photo(message.chat.id, bg_url, caption=report, parse_mode="HTML")
-    except:
-        bot.reply_to(message, "⚠️ ከተማውን ማግኘት አልቻልኩም።")
+    except Exception as e:
+        bot.reply_to(message, "⚠️ ሲስተሙ ለጊዜው አልሰራም። እባክህ ቆይተህ ሞክር።")
 
-# --- AI Image & Chat (Stay as is) ---
+# --- AI Image & Chat Placeholder ---
 @bot.message_handler(func=lambda m: m.text == '🎨 AI ምስል መፍጠሪያ')
 def ai_image(message):
     bot.reply_to(message, "ይህ ክፍል በዳንኤል AI እየተሻሻለ ነው... ⏳")
